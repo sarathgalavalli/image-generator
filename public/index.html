@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>App</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+      integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk"
+      crossorigin="anopymous"
+    />
+    <script
+      src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+      integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
+      crossorigin="anopymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+      integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+      crossorigin="anopymous"
+    ></script>
+    <script
+      src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"
+      integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI"
+      crossorigin="anopymous"
+    ></script>
+    <script type="text/javascript">
+      imageGeneratorObject = null;
+
+      function draw(canvasId, width, height, delay) {
+        if (imageGeneratorObject != null) {
+          imageGeneratorObject.clear();
+        }
+        imageGeneratorObject = new imageGenerator(
+          canvasId,
+          width,
+          height,
+          delay
+        );
+        imageGeneratorObject.setRandomness(0.5, 0.25, 0.25);
+
+        imageGeneratorObject.start();
+      }
+
+      function imageGenerator(canvasId, width, height, delay) {
+        this.pixels = new Array();
+        this.noOfColours = new Array();
+        this.timeouts = new Array();
+        this.pixelsInImage = new Array();
+        this.stopped = false;
+        this.processes = 10;
+
+        this.canvas = document.getElementById(canvasId);
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.context = this.canvas.getContext("2d");
+        this.context.clearRect(0, 0, width - 1, height - 1);
+
+        this.setRandomness = (redContent, blueContent, greenContent) => {
+          this.redContent = redContent;
+          this.blueContent = blueContent;
+          this.greenContent = greenContent;
+        };
+
+        this.start = () => {
+          for (red = 0; red <= 255; red += 8) {
+            for (blue = 0; blue <= 255; blue += 8) {
+              for (green = 0; green <= 255; green += 8) {
+                this.noOfColours.push(new Color(red, blue, green));
+              }
+            }
+          }
+
+          let color = this.noOfColours.splice(
+            randomIntegerGenerator(0, this.noOfColours.length - 1),
+            1
+          )[0];
+          let pixel = new Pixel(
+            randomIntegerGenerator(0, width - 1),
+            randomIntegerGenerator(0, height - 1),
+            color
+          );
+          this.addPixel(pixel);
+
+          for (let i = 0; i < this.processes; i++) {
+            this.timeouts.push(null);
+            this.generate(i);
+          }
+        };
+
+        this.generate = function (index) {
+          if (this.pixels.length > 0) {
+            this.generatePixel(
+              this.pixels.splice(
+                randomIntegerGenerator(0, this.pixels.length - 1),
+                1
+              )[0]
+            );
+            this.timeouts[index] = setTimeout(
+              function (that) {
+                if (!that.stopped) {
+                  that.generate();
+                }
+              },
+              this.delay,
+              this
+            );
+          }
+        };
+
+        this.generatePixel = function (pixel) {
+          for (let px = pixel.getX() - 1; px < pixel.getX() + 2; px++) {
+            for (let py = pixel.getY() - 1; py < pixel.getY() + 2; py++) {
+              if (
+                !(
+                  this.pixelsInImage[px + "x" + py] == 1 ||
+                  py < 0 ||
+                  px < 0 ||
+                  px > width - 1 ||
+                  py > height - 1 ||
+                  (px == pixel.getX() && py == pixel.getY())
+                )
+              ) {
+                let color = this.selectColor(pixel.getColor());
+                let newPixel = new Pixel(px, py, color);
+                this.addPixel(newPixel);
+              }
+            }
+          }
+        };
+
+        this.selectColor = (color) => {
+          let relevancies = new Array();
+          let relevantColor = new Array();
+          for (let i = 0; i < this.noOfColours.length; i++) {
+            let index = randomIntegerGenerator(0, this.noOfColours.length - 1);
+            let c = this.noOfColours[index];
+            let relevancy =
+              Math.pow((c.getRed() - color.getRed()) * this.redContent, 2) +
+              Math.pow((c.getBlue() - color.getBlue()) * this.blueContent, 2) +
+              Math.pow(
+                (c.getGreen() - color.getGreen()) * this.greenContent,
+                2
+              );
+            relevancies.push(relevancy);
+            relevantColor[relevancy + "Color"] = index;
+          }
+          return this.noOfColours.splice(
+            relevantColor[relevancies.min() + "Color"],
+            1
+          )[0];
+        };
+
+        this.addPixel = function (pixel) {
+          this.pixels.push(pixel);
+          this.pixelsInImage[pixel.getX() + "x" + pixel.getY()] = 1;
+          let color = pixel.getColor();
+          this.context.fillStyle =
+            "rgb(" +
+            color.getRed() +
+            "," +
+            color.getBlue() +
+            "," +
+            color.getGreen() +
+            ")";
+          this.context.fillRect(pixel.getX(), pixel.getY(), 1, 1);
+        };
+
+        this.clear = function () {
+          this.stopped = true;
+        };
+      }
+
+      function Color(red, blue, green) {
+        this.getRed = function () {
+          return red;
+        };
+        this.getBlue = function () {
+          return blue;
+        };
+        this.getGreen = function () {
+          return green;
+        };
+      }
+
+      function Pixel(x, y, color) {
+        this.getX = function () {
+          return x;
+        };
+        this.getY = function () {
+          return y;
+        };
+        this.getColor = function () {
+          return color;
+        };
+      }
+
+      function randomIntegerGenerator(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+
+      Array.prototype.min = function () {
+        return Math.min.apply(null, this);
+      };
+    </script>
+  </head>
+
+  <body>
+    <div id="app"></div>
+    <canvas id="imageGeneratorCanvas"></canvas>
+    <script src="/bundle.js"></script>
+  </body>
+</html>
